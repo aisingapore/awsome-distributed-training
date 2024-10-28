@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Setup FSX for Lustre
+  Author:
+    - wayne@aisingapore.org
+
+Parameters:
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: 'Subnet Id'
+    Default: subnet-0da445113132263a9
+    AllowedPattern: 'subnet-[a-f0-9]+'
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: 'Security Group Ids'
+    Default: sg-0640550592de716d8
+    AllowedPattern: 'sg-[a-f0-9]+'
+  S3BackupPath:
+    Type: String
+    Description: 'S3 backup path'
+    Default: s3://singtel-backup-14102024/t2-cluster/
+    
+Resources:
+  AddFsxPortToSecurityGroup:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroupId
+      IpProtocol: tcp
+      FromPort: 988
+      ToPort: 988
+      SourceSecurityGroupId: !Ref SecurityGroupId
+  FSxLustreFileSystem:
+    Type: AWS::FSx::FileSystem
+    Properties:
+      FileSystemType: LUSTRE
+      SubnetIds:
+        - !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      LustreConfiguration: 
+          # CopyTagsToBackups: Boolean
+          # DailyAutomaticBackupStartTime: String
+          # DataCompressionType: String
+          DeploymentType: PERSISTENT_2
+          #DriveCacheType: String
+          PerUnitStorageThroughput: 125
+      StorageCapacity: 1200
+  CreateAssociation:
+    Type: AWS::FSx::DataRepositoryAssociation
+    Properties:
+      FileSystemId: !Ref FSxLustreFileSystem
+      FileSystemPath: "/"
+      DataRepositoryPath: !Ref S3BackupPath
+
+Outputs:
+  FSxLustreFileSystem:
+    Description: 'FSx Lustre file system ID'
+    Value: !Ref FSxLustreFileSystem
+    Export:
+      Name: !Sub '${AWS::StackName}-FSxLustreFileSystem'
+  DRAId: 
+    Description: 'Data Repository Association ID'
+    Value: !Ref CreateAssociation

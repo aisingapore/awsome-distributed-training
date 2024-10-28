@@ -1,0 +1,123 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+Region: us-east-2
+Imds:
+  ImdsSupport: v1.0
+Image:
+  Os: ubuntu2204
+HeadNode:
+  InstanceType: c5n.18xlarge
+  Networking:
+    SubnetId: subnet-01c149d539171cc4f
+    AdditionalSecurityGroups:
+      - sg-08ca05c8cd28e316c
+  LocalStorage:
+    RootVolume:
+      Size: 1000
+      VolumeType: gp3
+      DeleteOnTermination: true # that's your root and /home volume for users
+  Iam:
+    S3Access:
+      - BucketName: seafm-cluster-2-common
+        EnableWriteAccess: true
+      - BucketName: p5-capacity-block-common
+        EnableWriteAccess: true
+    # AdditionalIamPolicies: # grant ECR, SSM and S3 read access
+    #   - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+    #   - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+    #   - Policy: arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+  CustomActions:
+    OnNodeConfigured:
+      Sequence:
+        - Script: 'https://raw.githubusercontent.com/aws-samples/aws-parallelcluster-post-install-scripts/main/docker/postinstall.sh'
+        - Script: 'https://raw.githubusercontent.com/aws-samples/aws-parallelcluster-post-install-scripts/main/nccl/postinstall.sh'
+          Args:
+            - v2.23.4-1 # NCCL version
+            - v1.11.0-aws # AWS OFI NCCL version
+  Imds:
+    Secured: false
+Scheduling:
+  Scheduler: slurm
+  SlurmSettings:
+    ScaledownIdletime: 60
+    QueueUpdateStrategy: DRAIN
+    CustomSlurmSettings:
+      # Simple accounting to text file /home/slurm/slurm-job-completions.txt.
+      - JobCompType: jobcomp/filetxt
+      - JobCompLoc: /home/slurm/slurm-job-completions.txt
+      - JobAcctGatherType: jobacct_gather/linux
+  SlurmQueues:
+    - Name: compute-gpu
+      CapacityType: CAPACITY_BLOCK
+      CapacityReservationTarget: 
+      # CapacityReservationId: cr-0e353637274c8394f # 8 nodes
+        CapacityReservationId: cr-036ccaac0d8a47967 # 2 nodes
+      Networking:
+        SubnetIds:
+          - subnet-0d217547cca247976
+        PlacementGroup:
+          Enabled: false  # set this to false if using a targeted ODCR
+        AdditionalSecurityGroups:
+          - sg-08ca05c8cd28e316c
+      # ComputeSettings:
+      #   LocalStorage:
+      #     EphemeralVolume:
+      #       MountDir: /scratch # each instance has a local scratch on NVMe
+      #     RootVolume:
+      #       Size: 200
+      # JobExclusiveAllocation: true   # GenAI training likes to gobble all GPUs in an instance
+      ComputeResources:
+        - Name: p5e48xlarge
+          InstanceType: p5e.48xlarge
+          MinCount: 2
+          MaxCount: 2
+          # Was initially enabled, disabled for testing
+          HealthChecks:
+            Gpu:
+              Enabled: false
+          Efa:
+            Enabled: true
+      # ComputeResources:
+      #   - Name: distributed-ml
+      #     InstanceType: p5e.48xlarge
+      #     MinCount: 2 # if min = max then capacity is maintained and will
+      #     MaxCount: 2 # not scale down
+      #     Efa:
+      #       Enabled: true
+      Iam:
+        S3Access:
+          - BucketName: seafm-cluster-2-common
+            EnableWriteAccess: true
+          - BucketName: p5-capacity-block-common
+            EnableWriteAccess: true
+      CustomActions:
+        OnNodeConfigured:
+          Sequence:
+            - Script: 'https://raw.githubusercontent.com/aws-samples/aws-parallelcluster-post-install-scripts/main/docker/postinstall.sh'
+            - Script: 'https://raw.githubusercontent.com/aws-samples/aws-parallelcluster-post-install-scripts/main/nccl/postinstall.sh'
+              Args:
+                - v2.23.4-1 # NCCL version
+                - v1.11.0-aws # AWS OFI NCCL version
+
+SharedStorage:
+  # - Name: HomeDirs
+  #   MountDir: /home
+  #   StorageType: FsxOpenZfs
+  #   FsxOpenZfsSettings:
+  #     VolumeId: ${FSXO_ID}
+  - MountDir: /fsx
+    Name: p5-capacity-block-fsx
+    StorageType: FsxLustre
+    FsxLustreSettings:
+      FileSystemId: fs-0d7e840715deee601
+Monitoring:
+  DetailedMonitoring: true
+  Logs:
+    CloudWatch:
+      Enabled: true # good for debug
+  Dashboards:
+    CloudWatch:
+      Enabled: true # provide basic dashboards
+Tags:
+  - Key: Category
+    Value: capacity-block

@@ -1,0 +1,78 @@
+Region: us-east-2
+Image:
+  Os: ubuntu2204
+HeadNode:
+  InstanceType: c5d.xlarge
+  Networking:
+    SubnetId: subnet-01c149d539171cc4f
+  Ssh:
+    KeyName: ohio-admin
+  LocalStorage:
+    RootVolume:
+      Size: 1000
+      VolumeType: gp3
+  Iam:
+    S3Access:
+      - BucketName: seafm-cluster-2-common
+        EnableWriteAccess: true
+      - BucketName: p5-capacity-block-common
+        EnableWriteAccess: true
+  
+Scheduling:
+  Scheduler: slurm
+  SlurmQueues:
+  - Name: queue1
+    CapacityType: CAPACITY_BLOCK
+    CapacityReservationTarget: 
+    # CapacityReservationId: cr-0e353637274c8394f # 8 nodes
+      CapacityReservationId: cr-036ccaac0d8a47967 # 2 nodes
+    ComputeResources:
+    - Name: p5e48xlarge
+      InstanceType: p5e.48xlarge
+      MinCount: 2
+      MaxCount: 2
+      # Was initially enabled, disabled for testing
+      HealthChecks:
+        Gpu:
+          Enabled: false
+      Efa:
+        Enabled: true
+      
+    Networking:
+      SubnetIds:
+      - subnet-0d217547cca247976
+    Iam:
+      S3Access:
+        - BucketName: seafm-cluster-2-common
+          EnableWriteAccess: true
+        - BucketName: p5-capacity-block-common
+          EnableWriteAccess: true
+
+  SlurmSettings:
+    QueueUpdateStrategy: COMPUTE_FLEET_STOP
+    CustomSlurmSettings:
+      - JobRequeue: 0
+
+SharedStorage:
+  - MountDir: /fsx
+    Name: p5-capacity-block-fsx
+    StorageType: FsxLustre
+    FsxLustreSettings:
+      # FileSystemId: fs-0d7e840715deee601
+        StorageCapacity: 12000
+        DeploymentType: PERSISTENT_2
+        PerUnitStorageThroughput: 1000
+        StorageType: SSD
+        DeletionPolicy: Retain
+Monitoring:
+  Logs:
+    CloudWatch:
+      Enabled: true
+  Dashboards:
+    CloudWatch:
+      Enabled: true
+  DetailedMonitoring: false
+
+Tags:
+  - Key: Category
+    Value: capacity-block
